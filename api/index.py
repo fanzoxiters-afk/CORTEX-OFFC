@@ -4,24 +4,26 @@ import os
 import random
 import string
 import time
+import traceback
 from supabase import create_client, Client
-
 
 app = Flask(__name__)
 
 # ================= ENV =================
 RESEND_API_KEY = os.getenv("RESEND_API_KEY")
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
-supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+# 🔥 LAZY CONNECTION SUPABASE (Solusi Error Errno 16)
+def get_supabase():
+    url = os.getenv("SUPABASE_URL")
+    key = os.getenv("SUPABASE_KEY")
+    return create_client(url, key)
 
 # ================= LICENSE =================
 def generate_key():
     chars = string.ascii_letters + string.digits
     return "Cx_" + "".join(random.choice(chars) for _ in range(16))
 
-# ================= HTML (TIDAK DIUBAH UI SAMA SEKALI) =================
+# ================= HTML =================
 def build_html(receiver_email, license_key, download_url):
     return f"""
 <html>
@@ -31,112 +33,46 @@ def build_html(receiver_email, license_key, download_url):
 
   <style>
     @media (prefers-color-scheme: dark) {{
-      body {{
-        background:#000000 !important;
-      }}
-      .card {{
-        background:#000000 !important;
-      }}
-      .text {{
-        color:#e5e5e5 !important;
-      }}
-      .muted {{
-        color:#b0b0b0 !important;
-      }}
-      .box {{
-        background:#2a2a2a !important;
-      }}
+      body {{ background:#000000 !important; }}
+      .card {{ background:#000000 !important; }}
+      .text {{ color:#e5e5e5 !important; }}
+      .muted {{ color:#b0b0b0 !important; }}
+      .box {{ background:#2a2a2a !important; }}
     }}
   </style>
 </head>
-
 <body style="margin:0;padding:0;background:transparent;font-family:Arial,sans-serif;">
-
   <table width="100%" cellpadding="0" cellspacing="0">
     <tr>
       <td align="center" style="padding:0px 0px;">
-
-        <table width="100%" cellpadding="0" cellspacing="0"
-          style="background:#ffffff;border-radius:14px;padding:25px;"
-          class="card">
-
+        <table width="100%" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:14px;padding:25px;" class="card">
           <tr>
             <td align="center">
-              <h2 style="margin:0;color:#111;font-weight:600;">
-                Download Verification Code
-              </h2>
-
-              <p style="margin:8px 0 15px;color:#666;font-size:15px;">
-                {receiver_email}
-              </p>
-
+              <h2 style="margin:0;color:#111;font-weight:600;">Download Verification Code</h2>
+              <p style="margin:8px 0 15px;color:#666;font-size:15px;">{receiver_email}</p>
               <hr style="border:none;border-top:1px solid #ddd;">
             </td>
           </tr>
-
           <tr>
             <td style="text-align:center;padding:15px 10px;color:#333;font-size:14px;line-height:1.6;">
-
-              <p class="text" style="margin:10px 0;">
-                Terima kasih atas permintaan Anda untuk mengakses Aplikasi kami.
-                Kami menghargai kepercayaan Anda.
-              </p>
-
-              <p class="text">
-                Silahkan download link berikut untuk Android.
-              </p>
-              
-
-<div style="margin:15px 0;padding:8px;  
-                      background:#f0f0f0;  
-                      border-radius:8px;  
-                      font-size:12px;  
-                      color:#333;"  
-               class="box">  
-
-            Key License:<br>  
-
-            <b style="color:#2563eb;">  
-              {license_key}  
-            </b>  
-          </div>  
-
-              <p style="font-size:13px;color:#555;margin-top:10px;">
-                Silahkan klik link berikut untuk
-                <span style="color:#2563eb;">tutorial pemasangan</span>,
-                dan untuk aplikasi tambahan.
-              </p>
-
+              <p class="text" style="margin:10px 0;">Terima kasih atas permintaan Anda untuk mengakses Aplikasi kami. Kami menghargai kepercayaan Anda.</p>
+              <p class="text">Silahkan download link berikut untuk Android.</p>
+              <div style="margin:15px 0;padding:8px;background:#f0f0f0;border-radius:8px;font-size:12px;color:#333;" class="box">  
+                Key License:<br>  
+                <b style="color:#2563eb;">{license_key}</b>  
+              </div>  
+              <p style="font-size:13px;color:#555;margin-top:10px;">Silahkan klik link berikut untuk <span style="color:#2563eb;">tutorial pemasangan</span>, dan untuk aplikasi tambahan.</p>
               <div style="margin:15px 0;">
-                <a href="{download_url}"
-                   style="background:#2563eb;
-                          color:#ffffff;
-                          padding:10px 60px;
-                          text-decoration:none;
-                          border-radius:8px;
-                          font-weight:bold;
-                          display:inline-block;">
-                  Download Now
-                </a>
+                <a href="{download_url}" style="background:#2563eb;color:#ffffff;padding:10px 60px;text-decoration:none;border-radius:8px;font-weight:bold;display:inline-block;">Download Now</a>
               </div>
-
-              <p style="font-size:13px;color:#777;">
-                Jika Anda membutuhkan bantuan, silahkan hubungi penjual.
-              </p>
-              
-              <p style="font-size:11px;color:#777;">
-                ©CortexTools NewPatch
-              </p>
-
+              <p style="font-size:13px;color:#777;">Jika Anda membutuhkan bantuan, silahkan hubungi penjual.</p>
+              <p style="font-size:11px;color:#777;">©CortexTools NewPatch</p>
             </td>
           </tr>
-
         </table>
-
       </td>
     </tr>
   </table>
-
 </body>
 </html>
 """
@@ -150,16 +86,17 @@ def home():
 @app.route("/send-email", methods=["POST"])
 def send_email():
     try:
+        supabase = get_supabase() # 🔥 Panggil Supabase di sini
         data = request.get_json() or {}
 
         to = data.get("to")
-        download_url = data.get("download_url")  # 🔥 TAMBAH INI
+        download_url = data.get("download_url")
 
         if not to:
             return jsonify({"error": "email kosong"}), 400
 
         if not download_url:
-            download_url = "https://example.com"  # default fallback
+            download_url = "https://example.com"
 
         license_key = generate_key().strip()
 
@@ -167,7 +104,7 @@ def send_email():
             "license": license_key,
             "email": to,
             "device_id": "",
-            "download_url": download_url,   # 🔥 SIMPAN APK YANG DIPILIH ADMIN
+            "download_url": download_url,
             "status": "active",
             "created": int(time.time())
         }).execute()
@@ -204,134 +141,49 @@ def send_email():
         }), 500
 
 
-
-
 def send_status_email(email, license_key, device_id):
-
     email = email.strip()
-
     html = f"""
 <html>
 <head>
-
 <meta name="color-scheme" content="light dark">
 <meta name="supported-color-schemes" content="light dark">
-
 <style>
-  body {{
-    margin:0;
-    padding:0;
-    font-family:Arial, sans-serif;
-    background:#ffffff;
-    color:#111;
-  }}
-
-  .container {{
-    max-width:100%;
-    margin:auto;
-    padding:0px;
-  }}
-
-  .card {{
-    background:#ffffff;
-    border:1px solid #ddd;
-    padding:25px;
-    border-radius:10px;
-  }}
-
-  h2 {{
-    text-align:center;
-    margin:0;
-  }}
-
-  hr {{
-    border:none;
-    border-top:1px solid #ddd;
-    margin:15px 0;
-  }}
-
-  .btn {{
-    background:#e53935;
-    color:#fff;
-    padding:12px 25px;
-    text-decoration:none;
-    border-radius:8px;
-    display:inline-block;
-  }}
-
-  .center {{
-    text-align:center;
-  }}
-
-  .small {{
-    font-size:12px;
-    color:#888;
-  }}
-
+  body {{ margin:0; padding:0; font-family:Arial, sans-serif; background:#ffffff; color:#111; }}
+  .container {{ max-width:100%; margin:auto; padding:0px; }}
+  .card {{ background:#ffffff; border:1px solid #ddd; padding:25px; border-radius:10px; }}
+  h2 {{ text-align:center; margin:0; }}
+  hr {{ border:none; border-top:1px solid #ddd; margin:15px 0; }}
+  .btn {{ background:#e53935; color:#fff; padding:12px 25px; text-decoration:none; border-radius:8px; display:inline-block; }}
+  .center {{ text-align:center; }}
+  .small {{ font-size:12px; color:#888; }}
   @media (prefers-color-scheme: dark) {{
-    body {{
-      background:#000000 !important;
-      color:#e5e5e5 !important;
-    }}
-
-    .card {{
-      background:#121212 !important;
-      color:#e5e5e5 !important;
-      border:1px solid #333 !important;
-    }}
-
-    hr {{
-      border-top:1px solid #333 !important;
-    }}
-
-    a {{
-      color:#ffffff !important;
-    }}
+    body {{ background:#000000 !important; color:#e5e5e5 !important; }}
+    .card {{ background:#121212 !important; color:#e5e5e5 !important; border:1px solid #333 !important; }}
+    hr {{ border-top:1px solid #333 !important; }}
+    a {{ color:#ffffff !important; }}
   }}
-
 </style>
-
 </head>
-
 <body>
-
 <div class="container">
-
   <div class="card">
-
     <h2>Selamat Key Berhasil Digunakan</h2>
-
     <hr>
-
     <p><b>Email:</b> {email}</p>
     <p><b>Key License:</b> {license_key}</p>
     <p><b>Device ID:</b> {device_id}</p>
-
     <hr>
-
-    <p>
-      Klik di bawah jika Anda menggunakan HP baru untuk mereset device:
-    </p>
-
+    <p>Klik di bawah jika Anda menggunakan HP baru untuk mereset device:</p>
     <div class="center" style="margin-top:20px;">
-      <a class="btn"
-         href="https://web-cortex.up.railway.app/reset-device?license={license_key}">
-        Reset Device
-      </a>
+      <a class="btn" href="https://web-cortex.up.railway.app/reset-device?license={license_key}">Reset Device</a>
     </div>
-
-    <p class="center small" style="margin-top:20px;">
-      © Copyright Cortex Official
-    </p>
-
+    <p class="center small" style="margin-top:20px;">© Copyright Cortex Official</p>
   </div>
-
 </div>
-
 </body>
 </html>
 """
-
     response = requests.post(
         "https://api.resend.com/emails",
         headers={
@@ -345,14 +197,14 @@ def send_status_email(email, license_key, device_id):
             "html": html
         }
     )
-
-    # optional debug biar kamu tau error
     if not response.ok:
         print("EMAIL ERROR:", response.text)
+
 # ================= LOGIN =================
 @app.route("/login", methods=["POST"])
 def login():
     try:
+        supabase = get_supabase() # 🔥 Panggil Supabase di sini
         data = request.form
 
         license_key = data.get("license")
@@ -363,46 +215,31 @@ def login():
 
         license_key = license_key.strip()
 
-        result = supabase.table("licenses") \
-            .select("*") \
-            .eq("license", license_key) \
-            .execute()
+        result = supabase.table("licenses").select("*").eq("license", license_key).execute()
 
         if not result.data:
             return jsonify({"status": "invalid"}), 404
 
         record = result.data[0]
         saved_device = record.get("device_id")
-        email_sent = record.get("email_sent")  # 🔥 tambah flag
+        email_sent = record.get("email_sent")
 
-        # ================= FIRST LOGIN =================
         if not saved_device:
-            supabase.table("licenses").update({
-                "device_id": device_id
-            }).eq("license", license_key).execute()
+            supabase.table("licenses").update({"device_id": device_id}).eq("license", license_key).execute()
 
-            # 🔥 ANTI SPAM EMAIL (CUMA SEKALI)
             if not email_sent:
-                send_status_email(
-                    record["email"],
-                    license_key,
-                    device_id
-                )
-
-                supabase.table("licenses").update({
-                    "email_sent": True
-                }).eq("license", license_key).execute()
+                send_status_email(record["email"], license_key, device_id)
+                supabase.table("licenses").update({"email_sent": True}).eq("license", license_key).execute()
 
             return jsonify({"status": "success"})
 
-        # ================= DEVICE CHECK =================
         if saved_device != device_id:
             return jsonify({"status": "blocked"}), 403
 
         return jsonify({"status": "success"})
 
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-
-# ================= RUN =================
+        return jsonify({
+            "error": str(e),
+            "trace": traceback.format_exc()
+        }), 500
