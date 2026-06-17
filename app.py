@@ -154,7 +154,6 @@ def send_email():
 
         to = data.get("to")
         download_url = data.get("download_url")
-        # 🔥 BARU: Ambil durasi hari dari request (jika tidak diisi, otomatis 30 hari)
         duration_days = data.get("duration_days", 30)
 
         if not to:
@@ -165,7 +164,6 @@ def send_email():
 
         license_key = generate_key().strip()
         
-        # 🔥 BARU: Hitung timestamp saat ini dan waktu expired (1 hari = 86400 detik)
         current_time = int(time.time())
         expired_at = current_time + (int(duration_days) * 86400)
 
@@ -176,7 +174,7 @@ def send_email():
             "download_url": download_url,   
             "status": "active",
             "created": current_time,
-            "expired_at": expired_at  # 🔥 BARU: Menyimpan info expired ke database
+            "expired_at": expired_at  
         }).execute()
 
         html = build_html(to, license_key, download_url)
@@ -376,12 +374,16 @@ def login():
         record = result.data[0]
         saved_device = record.get("device_id")
         email_sent = record.get("email_sent")
-        expired_at = record.get("expired_at")  # 🔥 BARU: Ambil info expired dari DB
+        expired_at = record.get("expired_at")  
 
         # ================= EXPIRED CHECK =================
-        # 🔥 BARU: Bandingkan waktu sekarang dengan batas expired_at
         if expired_at and int(time.time()) > int(expired_at):
             return jsonify({"status": "expired"}), 403
+
+        # 🔥 BARU: Siapkan paket data waktu dalam bentuk Unix Timestamp (Detik)
+        created_at_ts = int(record.get("created", 0))
+        expired_at_ts = int(expired_at if expired_at else 0)
+        current_ts = int(time.time())
 
         # ================= FIRST LOGIN =================
         if not saved_device:
@@ -389,7 +391,7 @@ def login():
                 "device_id": device_id
             }).eq("license", license_key).execute()
 
-            # 🔥 ANTI SPAM EMAIL (CUMA SEKALI)
+            # ANTI SPAM EMAIL (CUMA SEKALI)
             if not email_sent:
                 send_status_email(
                     record["email"],
@@ -401,13 +403,27 @@ def login():
                     "email_sent": True
                 }).eq("license", license_key).execute()
 
-            return jsonify({"status": "success"})
+            # 🔥 DIUBAH: Mengembalikan data lengkap ke Android saat login pertama
+            return jsonify({
+                "status": "success",
+                "id": record.get("id"),
+                "created_at_ts": created_at_ts,
+                "expired_at_ts": expired_at_ts,
+                "current_ts": current_ts
+            })
 
         # ================= DEVICE CHECK =================
         if saved_device != device_id:
             return jsonify({"status": "blocked"}), 403
 
-        return jsonify({"status": "success"})
+        # 🔥 DIUBAH: Mengembalikan data lengkap ke Android saat login biasa sukses
+        return jsonify({
+            "status": "success",
+            "id": record.get("id"),
+            "created_at_ts": created_at_ts,
+            "expired_at_ts": expired_at_ts,
+            "current_ts": current_ts
+        })
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
