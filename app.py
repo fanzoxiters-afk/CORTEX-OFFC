@@ -427,6 +427,60 @@ def login():
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+# ================= APP UPDATE MENGGUNAKAN REQUEST NETWORK =================
+
+# 1. ENDPOINT UNTUK APK ADMIN (Kirim Data Pembaruan)
+@app.route("/admin/set-update", methods=["POST"])
+def admin_set_update():
+    try:
+        # data = otomatis deteksi jika dikirim lewat JSON atau Form dari RequestNetwork
+        data = request.get_json(silent=True) or request.form
+        
+        title = data.get("title")
+        description = data.get("description")
+        version_code = data.get("version_code")
+        download_url = data.get("download_url")
+
+        if not title or not description or not version_code:
+            return jsonify({"status": "error", "message": "Data tidak lengkap!"}), 400
+
+        # Simpan atau update di tabel 'app_updates' dengan ID tunggal = 1
+        supabase.table("app_updates").upsert({
+            "id": 1,
+            "title": title,
+            "description": description,
+            "version_code": int(version_code),
+            "download_url": download_url if download_url else "https://example.com"
+        }).execute()
+
+        return jsonify({"status": "success", "message": "Pembaruan berhasil disimpan!"})
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# 2. ENDPOINT UNTUK APK USER (Cek Pembaruan Aplikasi)
+@app.route("/check-update", methods=["GET"])
+def check_update():
+    try:
+        # Ambil baris konfigurasi update ber-id 1
+        result = supabase.table("app_updates").select("*").eq("id", 1).execute()
+        
+        if not result.data:
+            return jsonify({"status": "error", "message": "Belum ada konfigurasi update"}), 404
+        
+        update_data = result.data[0]
+        
+        return jsonify({
+            "status": "success",
+            "title": update_data.get("title"),
+            "description": update_data.get("description"),
+            "version_code": update_data.get("version_code"),
+            "download_url": update_data.get("download_url")
+        })
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 # ================= RUN =================
