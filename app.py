@@ -153,23 +153,30 @@ def send_email():
         data = request.get_json() or {}
 
         to = data.get("to")
-        download_url = data.get("download_url")  # 🔥 TAMBAH INI
+        download_url = data.get("download_url")
+        # 🔥 BARU: Ambil durasi hari dari request (jika tidak diisi, otomatis 30 hari)
+        duration_days = data.get("duration_days", 30)
 
         if not to:
             return jsonify({"error": "email kosong"}), 400
 
         if not download_url:
-            download_url = "https://example.com"  # default fallback
+            download_url = "https://example.com"
 
         license_key = generate_key().strip()
+        
+        # 🔥 BARU: Hitung timestamp saat ini dan waktu expired (1 hari = 86400 detik)
+        current_time = int(time.time())
+        expired_at = current_time + (int(duration_days) * 86400)
 
         supabase.table("licenses").insert({
             "license": license_key,
             "email": to,
             "device_id": "",
-            "download_url": download_url,   # 🔥 SIMPAN APK YANG DIPILIH ADMIN
+            "download_url": download_url,   
             "status": "active",
-            "created": int(time.time())
+            "created": current_time,
+            "expired_at": expired_at  # 🔥 BARU: Menyimpan info expired ke database
         }).execute()
 
         html = build_html(to, license_key, download_url)
@@ -199,8 +206,6 @@ def send_email():
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
-
 
 
 def send_status_email(email, license_key, device_id):
@@ -343,9 +348,9 @@ def send_status_email(email, license_key, device_id):
         }
     )
 
-    # optional debug biar kamu tau error
     if not response.ok:
         print("EMAIL ERROR:", response.text)
+
 # ================= LOGIN =================
 @app.route("/login", methods=["POST"])
 def login():
@@ -370,7 +375,13 @@ def login():
 
         record = result.data[0]
         saved_device = record.get("device_id")
-        email_sent = record.get("email_sent")  # 🔥 tambah flag
+        email_sent = record.get("email_sent")
+        expired_at = record.get("expired_at")  # 🔥 BARU: Ambil info expired dari DB
+
+        # ================= EXPIRED CHECK =================
+        # 🔥 BARU: Bandingkan waktu sekarang dengan batas expired_at
+        if expired_at and int(time.time()) > int(expired_at):
+            return jsonify({"status": "expired"}), 403
 
         # ================= FIRST LOGIN =================
         if not saved_device:
